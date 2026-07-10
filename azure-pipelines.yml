@@ -1,8 +1,3 @@
-# NOTE:
-# This file contains the user's original pipeline with the recommended
-# Node/SCA changes applied. Replace the "..." section below with the
-# packaging section from your existing pipeline if desired.
-
 trigger:
   - master
 
@@ -19,6 +14,7 @@ steps:
       versionSpec: '20.x'
 
   - script: |
+      set -euxo pipefail
       node -v
       npm -v
     displayName: Verify Node
@@ -32,25 +28,34 @@ steps:
       export NPM_CONFIG_PACKAGE_LOCK=true
       export NPM_CONFIG_AUDIT=false
       export NPM_CONFIG_FUND=false
+      export NPM_CONFIG_IGNORE_SCRIPTS=true
 
-      if [ -f package.json ]; then
-        rm -f .npmrc package-lock.json
-        npm install --legacy-peer-deps --package-lock
-      fi
+      npm install --package-lock-only --legacy-peer-deps --ignore-scripts
+      test -f package-lock.json
 
-      if [ -d frontend ] && [ -f frontend/package.json ]; then
-        cd frontend
-        rm -f .npmrc package-lock.json
-        npm config set package-lock true
-        npm install --legacy-peer-deps --package-lock
-        test -f package-lock.json
-        cd ..
-      fi
-    displayName: Prepare dependencies
+      npm --prefix frontend install --package-lock-only --legacy-peer-deps --ignore-scripts
+      test -f frontend/package-lock.json
+    displayName: Prepare npm lockfiles for SCA
 
   - script: |
+      set -euxo pipefail
+
+      curl -sSL https://sca-downloads.veracode.com/ci.sh -o srcclr-ci.sh
+      chmod +x srcclr-ci.sh
+    displayName: Download Veracode SCA agent
+
+  - script: |
+      set -euxo pipefail
+
       export NPM_CONFIG_LEGACY_PEER_DEPS=true
       export NPM_CONFIG_PACKAGE_LOCK=true
-      curl -sSL https://download.srcclr.com/ci.sh | bash -s -- scan --update-advisor --allow-dirty --recursive
+      export NPM_CONFIG_AUDIT=false
+      export NPM_CONFIG_FUND=false
+      export NPM_CONFIG_IGNORE_SCRIPTS=true
+      export SRCCLR_SCAN_COLLECTORS="npm quickscan"
+      export SRCCLR_JAVA_OPTS="-Xmx4096m"
+
+      bash srcclr-ci.sh scan --quick --update-advisor --allow-dirty .
+      bash srcclr-ci.sh scan --quick --update-advisor --allow-dirty frontend
     displayName: Veracode SCA
     continueOnError: true
