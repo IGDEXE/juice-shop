@@ -182,6 +182,11 @@ steps:
     displayName: 'Download Veracode CLI'
 
   - script: |
+      cd frontend
+      npm install --legacy-peer-deps
+    displayName: 'Prepare dependencies'
+
+  - script: |
       curl -sSL https://download.srcclr.com/ci.sh | bash -s -- scan --update-advisor --allow-dirty --recursive
     displayName: 'Veracode SCA'
     continueOnError: true
