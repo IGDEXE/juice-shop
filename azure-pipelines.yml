@@ -19,8 +19,6 @@ steps:
       npm -v
     displayName: Verify Node
 
-  # >>> KEEP YOUR EXISTING "Preparar pacote Veracode unificado" STEP HERE <<<
-
   - script: |
       set -euxo pipefail
 
@@ -35,6 +33,7 @@ steps:
 
       npm --prefix frontend install --package-lock-only --legacy-peer-deps --ignore-scripts
       test -f frontend/package-lock.json
+      test ! -f build/package.json
     displayName: Prepare npm lockfiles for SCA
 
   - script: |
@@ -55,7 +54,8 @@ steps:
       export SRCCLR_SCAN_COLLECTORS="npm quickscan"
       export SRCCLR_JAVA_OPTS="-Xmx4096m"
 
-      bash srcclr-ci.sh scan --quick --update-advisor --allow-dirty .
-      bash srcclr-ci.sh scan --quick --update-advisor --allow-dirty frontend
+      bash srcclr-ci.sh scan --quick --recursive --update-advisor --allow-dirty .
     displayName: Veracode SCA
     continueOnError: true
+
+  # >>> KEEP YOUR EXISTING "Preparar pacote Veracode unificado" STEP HERE <<<
