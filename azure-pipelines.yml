@@ -8,6 +8,18 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
+  - task: NodeTool@0
+    displayName: 'Use Node.js 20'
+    inputs:
+      versionSpec: '20.x'
+
+  - script: |
+      echo "Node version:"
+      node -v
+      echo "NPM version:"
+      npm -v
+    displayName: 'Verify Node Version'
+
   - script: |
       set -euo pipefail
 
@@ -81,9 +93,7 @@ steps:
       while IFS= read -r -d '' dllFile; do
         pdbFile="${dllFile%.dll}.pdb"
 
-        if [[ ! -f "$pdbFile" ]]; then
-          continue
-        fi
+        [[ ! -f "$pdbFile" ]] && continue
 
         dllName=$(basename "$dllFile")
         dllKey=$(printf '%s' "$dllName" | tr '[:upper:]' '[:lower:]')
@@ -91,12 +101,8 @@ steps:
         pathScore=0
 
         case "$dllFile" in
-          */bin/Release/*|*/bin/release/*)
-            pathScore=2
-            ;;
-          */bin/*)
-            pathScore=1
-            ;;
+          */bin/Release/*|*/bin/release/*) pathScore=2 ;;
+          */bin/*) pathScore=1 ;;
         esac
 
         score="${pathScore}${dllMtime}"
@@ -182,11 +188,28 @@ steps:
     displayName: 'Download Veracode CLI'
 
   - script: |
-      cd frontend
-      npm install --legacy-peer-deps
+      set -e
+
+      npm config set legacy-peer-deps true
+      npm config set audit false
+      npm config set fund false
+
+      if [ -f package.json ]; then
+        npm install
+      fi
+
+      if [ -d frontend ] && [ -f frontend/package.json ]; then
+        cd frontend
+        npm install
+        cd ..
+      fi
     displayName: 'Prepare dependencies'
 
   - script: |
+      export NPM_CONFIG_LEGACY_PEER_DEPS=true
+      export NPM_CONFIG_AUDIT=false
+      export NPM_CONFIG_FUND=false
+
       curl -sSL https://download.srcclr.com/ci.sh | bash -s -- scan --update-advisor --allow-dirty --recursive
     displayName: 'Veracode SCA'
     continueOnError: true
@@ -200,8 +223,6 @@ steps:
       cd "$PARENT_DIR"
       mv "$ORIGINAL_NAME" "$PIPELINE_DIR"
       cd "$PIPELINE_DIR"
-
-      echo "pasta: $(pwd)"
 
       ./veracode scan \
         --type directory \
